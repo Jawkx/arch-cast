@@ -1,6 +1,9 @@
-#!/usr/bin/python3
-from pathlib import Path
-import sys
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from archcast.__main__ import main
-sys.exit(main())
+#!/bin/sh
+# Development convenience only. Installation copies the native binary itself.
+set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$(readlink -f -- "$0")")/.." && pwd)
+if [ ! -x "$root/target/release/arch-cast" ]; then
+    printf '%s\n' 'Build first: cargo build --release --locked -j 2' >&2
+    exit 1
+fi
+exec "$root/target/release/arch-cast" "$@"

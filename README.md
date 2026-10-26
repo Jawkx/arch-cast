@@ -1,30 +1,67 @@
 # Arch Cast
 
-A standalone, native launcher for Arch Linux and Hyprland, inspired by [oma-cast](https://github.com/typecraft-dev/oma-cast). No Omarchy shell, plugins, menu actions, telemetry, Electron, or network services. Search stays local until you explicitly choose a web search.
+A keyboard-first native application launcher for Arch Linux and Hyprland, written in Rust with [GPUI](https://gpui.rs/). No Python, Qt, Electron, webview, telemetry, plugins, or network services. Search stays local until you choose a web search.
 
-Press **Super+Space** to toggle it. The default theme is **Catppuccin Mocha**.
+Press **Super+Space** to toggle it. The default theme is Catppuccin Mocha.
 
-![Arch Cast on this desktop](docs/screenshots/mocha.png)
+![Arch Cast running on Wayland](docs/screenshots/mocha.png)
 
-[Desktop verification and screenshots](docs/verification.md) cover the shortcut, native app launch, action panel, calculator, and saved theme changes.
+## What it does
 
-## What works
+- Searches installed applications, including user overrides, nested desktop entries, and Chrome web apps.
+- Matches names, acronyms, keywords, aliases, and abbreviations. Learns searches and ranks by frequency and recency.
+- Saves favorites, aliases, hidden results, and recent searches.
+- Provides a searchable Ctrl+K action panel.
+- Calculates arithmetic such as `12 * (3 + 4)` and `2^8`. Enter copies the answer without closing the launcher.
+- Offers Google and DuckDuckGo fallback searches. Queries are URL-encoded, never executed as shell commands.
+- Previews themes, individual hex colors, fonts, font sizes, and window widths in settings. Includes color pickers and hidden-result restoration.
+- Runs explicit, user-authored custom commands from configuration.
+- Keeps one resident process with a user-only Unix socket. Windows close when dismissed; the process remains ready for the next shortcut.
 
-- Installed application search, including user overrides and Chrome web apps.
-- Fuzzy name matching, keywords, aliases, learned searches, and frequency/recency ranking.
-- Favorites, with initial shortcuts for Chrome, Ghostty, Steam, and WhatsApp Web when installed.
-- Searchable Ctrl+K action panel with favorites, aliases, copying, ranking reset, and hidden results.
-- Google and DuckDuckGo fallback searches. Queries are URL-encoded, never run as shell commands.
-- Local arithmetic such as `12 * (3 + 4)` or `2^8`. Enter copies the answer.
-- Theme settings with preset switching, individual color pickers, preview, font size, window width, and hidden-result restoration.
-- Explicit, user-authored custom shell commands in the config file.
-- One resident native process and a user-only local socket. No duplicate launcher windows.
+## Build and install
+
+Requires a current stable Rust toolchain, a Vulkan-capable graphics driver, and Hyprland with its Lua configuration API. The installer expects `hyprland.lua` to contain a `local menu = ...` line referring to Rofi or Arch Cast. Older Hyprlang configuration files are not supported.
+
+On Arch Linux, install the build and desktop dependencies:
+
+```sh
+sudo pacman -S --needed base-devel clang cmake pkgconf rust \
+  wayland libxkbcommon fontconfig vulkan-icd-loader libxcb libx11 \
+  gtk3 xdg-utils
+```
+
+Install the Vulkan driver appropriate to your GPU as well, for example `vulkan-intel` or `vulkan-radeon`. NVIDIA users need the Vulkan support supplied by their driver. Application icons come from your installed icon themes.
+
+```sh
+cargo build --release --locked -j 2
+./target/release/arch-cast install
+~/.local/bin/arch-cast show
+```
+
+The first build compiles GPUI and its dependencies. `-j 2` limits build-time memory use. The executable does not require Rust, Cargo, Python, or this checkout at runtime. It still uses the system graphics, font, and Wayland/X11 libraries, plus `gtk-launch` and `xdg-open`.
+
+The installer:
+
+1. Backs up your Hyprland configuration under the launcher's config directory.
+2. Copies the executable to `~/.local/bin/arch-cast` and writes a desktop entry.
+3. Replaces only the launcher menu command and the marked Arch Cast window/session block.
+4. Reloads Hyprland. If the compositor rejects the config, restores the files it changed.
+
+Rofi and your original Rofi scripts remain installed. Reinstall after rebuilding to update the installed executable. Installing stops an old resident so the next invocation uses the new binary.
+
+To restore the previous launcher:
+
+```sh
+arch-cast uninstall
+```
+
+Uninstall preserves settings, backups, and later unrelated Hyprland edits. Existing installation manifests from the Python version are supported, including their original Rofi binding.
 
 ## Keyboard
 
 | Key | Action |
 | --- | --- |
-| Super+Space | Toggle launcher |
+| Super+Space | Toggle launcher through Hyprland |
 | Enter | Open selected result or copy calculator answer |
 | Up / Down | Move selection |
 | Ctrl+P / Ctrl+N | Move selection |
@@ -35,25 +72,23 @@ Press **Super+Space** to toggle it. The default theme is **Catppuccin Mocha**.
 | Ctrl+Shift+C | Copy desktop ID or custom command |
 | Alt+Shift+D | Hide selected application or custom command |
 | Ctrl+, | Open settings |
-| Up on empty search | Recall most recent search |
+| Ctrl+S in settings | Save changes |
+| Up on empty search | Recall the most recent search |
 | Ctrl+Plus / Ctrl+Minus / Ctrl+0 | Increase, decrease, reset font size |
 | Esc | Close actions, then clear search, then dismiss |
-| Shift+Esc | Dismiss immediately |
+| Esc in settings | Cancel unsaved appearance changes |
+| Shift+Esc | Dismiss immediately outside settings |
 
-Clicking outside also dismisses the launcher. App launches detach from the launcher, so closing or restarting it does not close your apps.
+Clicking outside dismisses the launcher. App launches detach from the launcher, so restarting it does not close your apps. The global shortcut belongs to Hyprland, not to a global keyboard hook in the app.
 
-## Theme customization
+## Configuration
 
-Click **Settings** in the footer or press **Ctrl+,**. Choose Catppuccin Mocha, Macchiato, Latte, or Tokyo Night. Change any individual hex color with its picker. Preview applies without saving. Save persists changes; Cancel restores the previous appearance.
-
-Settings live in `~/.config/arch-cast/config.json`:
+Settings live in `$XDG_CONFIG_HOME/arch-cast/config.json`, normally `~/.config/arch-cast/config.json`:
 
 ```json
 {
   "theme": "Catppuccin Mocha",
-  "colors": {
-    "accent": "#cba6f7"
-  },
+  "colors": { "accent": "#cba6f7" },
   "font": "Noto Sans",
   "font_size": 12,
   "width": 840,
@@ -61,17 +96,20 @@ Settings live in `~/.config/arch-cast/config.json`:
 }
 ```
 
-Available colors are `background`, `surface`, `selection`, `border`, `text`, `muted`, `accent`, and `success`. Six-digit `#rrggbb` values override the selected preset. Missing or invalid colors fall back to the preset. Edits load the next time the launcher opens. Use an empty `colors` object to use the preset unchanged.
+Available presets are Catppuccin Mocha, Macchiato, Latte, and Tokyo Night. Color keys are `background`, `surface`, `selection`, `border`, `text`, `muted`, `accent`, and `success`. Valid `#rrggbb` overrides replace preset colors. An empty `colors` object uses the preset unchanged. Font size is 10–20 points and width is 640–1200 logical pixels.
 
-Favorites, aliases, hidden entries, usage, and search history are stored separately in `~/.local/state/arch-cast/state.json`. Files are written atomically. Clearing this file resets personal ranking and favorites without changing your theme.
+Settings preview live. Save writes the appearance; Cancel restores the saved appearance. Restoring hidden results changes saved result visibility immediately, independently of appearance changes.
 
-## Custom commands
+Favorites, aliases, hidden entries, usage, learned searches, and history live in `$XDG_STATE_HOME/arch-cast/state.json`, normally `~/.local/state/arch-cast/state.json`. Config and state writes use a temporary file and atomic rename. Existing files from the Python version work without conversion. Unknown configuration fields are preserved.
 
-Add a command in `config.json`, then reopen the launcher or run Refresh Applications:
+Edits to configuration and the application catalog load when a new launcher window opens. Refresh Applications also reloads them.
+
+### Custom commands
+
+Add an explicit command to `config.json`:
 
 ```json
 {
-  "theme": "Catppuccin Mocha",
   "commands": [
     {
       "id": "screenshots",
@@ -85,7 +123,7 @@ Add a command in `config.json`, then reopen the launcher or run Refresh Applicat
 }
 ```
 
-Custom commands intentionally run through `/bin/sh`. Only add commands you trust. Search text is never interpolated into these commands.
+Custom commands intentionally run through `/bin/sh`. Only add commands you trust. Search input is never interpolated into these commands. Normal desktop entries launch by ID through GIO's `gtk-launch`, which handles desktop field codes, terminal applications, user overrides, and D-Bus activation.
 
 ## CLI
 
@@ -97,49 +135,36 @@ arch-cast quit
 arch-cast doctor
 arch-cast list ghostty
 arch-cast run app:com.mitchellh.ghostty.desktop
+arch-cast daemon
 ```
 
-The first invocation starts the resident in the background. `arch-cast daemon` runs it in the foreground for session startup or debugging. Logs are in `~/.local/state/arch-cast/launcher.log`. If you edit Python code, run `arch-cast quit` and reopen it.
+The first toggle/show/run starts the resident in the background. `daemon` runs it in the foreground for session startup or debugging. Logs are in `$XDG_STATE_HOME/arch-cast/launcher.log`. `list` and `doctor` do not open a window. `hide` and `quit` do not start a missing resident.
 
-## Install and restore Rofi
+For development, use `cargo run -- show` or the built binary directly. `bin/arch-cast` is a convenience wrapper for the release build, not the installed executable.
 
-Requires Hyprland 0.56.2's Lua configuration API, `/usr/bin/python3`, `python-pyqt6`, `qt6-wayland`, `gtk3` for `gtk-launch`, and `xdg-utils`. The installer expects `~/.config/hypr/hyprland.lua` with a `local menu` variable pointing to Rofi. It does not support older Hyprlang configurations. Optional icon themes supply application artwork. The launcher works without a build step or pip environment.
-
-```sh
-git clone https://github.com/Jawkx/arch-cast.git
-cd arch-cast
-/usr/bin/python3 install.py
-```
-
-Review `install.py` before running it. It modifies your launcher binding and reloads Hyprland.
-
-The installer:
-
-1. Backs up `~/.config/hypr/hyprland.lua` under `~/.config/arch-cast/backups/`.
-2. Links `~/.local/bin/arch-cast` to this project's executable and adds a desktop entry.
-3. Changes only the `local menu` command and adds a marked floating-window/session-start block.
-4. Reloads Hyprland and restores the backup if the compositor reports configuration errors.
-
-Keep this project directory in place because the installed command links to it. Rofi and your original Rofi scripts remain installed.
-
-To restore the previous launcher:
+## Development
 
 ```sh
-# Run from your checkout.
-/usr/bin/python3 install.py --uninstall
-```
-
-Uninstall removes only this launcher's Hyprland block, restores the previous menu command, stops Arch Cast, and removes its executable link and desktop entry. It preserves later unrelated Hyprland edits, settings, and backups.
-
-## Development and checks
-
-```sh
-QT_QPA_PLATFORM=offscreen /usr/bin/python3 -m unittest discover -s tests -v
-/usr/bin/python3 -m compileall -q archcast
-arch-cast doctor
+cargo fmt --check
+cargo clippy --all-targets --locked -- -D warnings
+cargo test --locked
+cargo run -- doctor
 hyprctl configerrors
 ```
 
-`archcast/core.py` owns discovery, ranking, storage, and themes. `archcast/ui.py` owns the Qt window and interactions. `archcast/__main__.py` owns CLI and single-instance IPC.
+GPUI and its component library are pinned together through GPUI Kit 0.8.0. Commit `Cargo.lock` and build with `--locked` for reproducibility.
 
-This is an independent implementation based on oma-cast's public screenshots and documented behavior. No upstream source or Raycast assets were copied. Omarchy-specific functionality and Raycast extension compatibility are deliberately absent.
+| Module | Responsibility |
+| --- | --- |
+| `src/catalog.rs` | Typed settings/state, ranking, history, favorites, themes |
+| `src/calculator.rs` | Bounded arithmetic parser, with no code evaluation |
+| `src/desktop.rs` | XDG desktop-file discovery and precedence |
+| `src/ui.rs` | GPUI search window, action panel, alias editor, settings |
+| `src/ipc.rs` | Resident lock, socket permissions, bounded request protocol |
+| `src/platform.rs` | Detached launching, icon lookup, compositor focus, diagnostics |
+| `src/install.rs` | Backup, install, rollback, and uninstall |
+| `src/main.rs` | CLI and resident window lifecycle |
+
+[Verification notes](docs/verification.md) describe automated and desktop checks.
+
+Arch Cast is an independent implementation inspired by [oma-cast](https://github.com/typecraft-dev/oma-cast). It does not implement Raycast extensions or Omarchy-specific integrations.
