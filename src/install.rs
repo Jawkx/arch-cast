@@ -23,6 +23,7 @@ const BLOCK: &str = r#"-- BEGIN ARCH CAST
 hl.window_rule({
     name = "arch-cast-launcher",
     match = { class = "^(arch-cast)$" },
+    border_size = 0,
     float = true,
     center = true,
     dim_around = true,
@@ -307,6 +308,10 @@ mod tests {
         let (installed, old) = installed_config(original).unwrap();
         assert_eq!(old, "local menu = 'rofi -show drun'");
         assert_eq!(installed.matches(START).count(), 1);
+        assert!(
+            installed
+                .contains("    match = { class = \"^(arch-cast)$\" },\n    border_size = 0,\n")
+        );
         assert_eq!(installed_config(&installed).unwrap().0, installed);
         let changed = format!("{installed}\n-- Added later\n");
         let restored = restored_config(&changed, &old).unwrap();

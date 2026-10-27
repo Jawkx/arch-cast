@@ -47,6 +47,8 @@ The installer:
 3. Replaces only the launcher menu command and the marked Arch Cast window/session block.
 4. Reloads Hyprland. If the compositor rejects the config, restores the files it changed.
 
+The window rule disables Hyprland's compositor border only for the `arch-cast` app class. Other windows keep their normal borders; the launcher's own themed outline is unchanged.
+
 Rofi and your original Rofi scripts remain installed. Reinstall after rebuilding to update the installed executable. Installing stops an old resident so the next invocation uses the new binary.
 
 To restore the previous launcher:
