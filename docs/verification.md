@@ -51,6 +51,26 @@ Checked during the port:
 
 Virtual-keyboard protocol injection through `wtype` was unreliable with this GPUI/Hyprland combination. The desktop keyboard checks use uinput instead. The temporary input devices are destroyed after each invocation.
 
+## Hyprland border
+
+The extra purple outline came from Hyprland's focused-window border, not from i3 or GPUI. The installer now writes `border_size = 0` inside the rule matching only the `arch-cast` app class:
+
+```diff
+ hl.window_rule({
+     name = "arch-cast-launcher",
+     match = { class = "^(arch-cast)$" },
++    border_size = 0,
+     float = true,
+```
+
+The launcher's own thin themed outline remains. No global border settings or other application rules change. Existing installations receive the rule when reinstalled from a freshly rebuilt binary.
+
+| Before: compositor focus border | After: only the app's themed outline |
+| --- | --- |
+| ![Purple compositor border](screenshots/border-before.png) | ![No compositor border](screenshots/border-after.png) |
+
+These are cropped desktop captures of the same launcher header. After applying the rule and reopening the window, the extra border is gone. `hyprctl configerrors` is empty and `general:border_size` remains `2` for other windows. The installer regression test checks that the zero-width border belongs to the class-scoped launcher rule and survives reinstallation.
+
 ## Manual regression checklist
 
 1. Toggle with Super+Space. Type an app name, use arrows, and launch it. Confirm closing the launcher does not close the app.
